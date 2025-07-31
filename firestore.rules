@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection - allow read/write for development and phone auth
+    match /users/{userId} {
+      // Allow if authenticated OR if it's a phone number based user creation
+      allow read, write: if request.auth != null ||
+        (userId.matches('\\+91[0-9]{10}') && request.auth == null);
+    }
+    
+    // Games collection - allow for authenticated users and development
+    match /games/{gameId} {
+      allow read, write: if request.auth != null || true; // Allow for development
+    }
+    
+    // Rooms collection - allow for authenticated users and development
+    match /rooms/{roomId} {
+      allow read, write: if request.auth != null || true; // Allow for development
+    }
+    
+    // Tournaments collection - allow for authenticated users and development
+    match /tournaments/{tournamentId} {
+      allow read, write: if request.auth != null || true; // Allow for development
+    }
+    
+    // Transactions collection - allow for development
+    match /transactions/{transactionId} {
+      allow read, write: if request.auth != null || true; // Allow for development
+    }
+    
+    // Development mode - allow all operations for testing
+    // Remove this in production and uncomment the restricted rules below
+    match /{document=**} {
+      allow read, write: if true; // DEVELOPMENT ONLY - REMOVE IN PRODUCTION
+    }
+    
+    // PRODUCTION RULES (uncomment when deploying to production):
+    /*
+    match /users/{userId} {
+      allow read, write: if request.auth != null &&
+        (request.auth.uid == userId ||
+         request.auth.token.phone_number == userId ||
+         resource.data.phoneNumber == request.auth.token.phone_number);
+    }
+    
+    match /games/{gameId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /rooms/{roomId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /tournaments/{tournamentId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /transactions/{transactionId} {
+      allow read: if request.auth != null &&
+        (resource.data.userId == request.auth.uid ||
+         resource.data.userId == request.auth.token.phone_number);
+      allow write: if request.auth != null;
+    }
+    */
+  }
+}
