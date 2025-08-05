@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { firebaseService } from '../../../src/services/firebaseService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -32,6 +33,17 @@ const ProfileScreen = () => {
 
   useEffect(() => {
     loadUserData();
+    
+    // Check for stats updates periodically
+    const interval = setInterval(async () => {
+      const statsUpdated = await AsyncStorage.getItem('statsUpdated');
+      if (statsUpdated === 'true') {
+        await loadUserData();
+        await AsyncStorage.removeItem('statsUpdated');
+      }
+    }, 5000); // Check every 5 seconds
+    
+    return () => clearInterval(interval);
   }, []);
 
   const loadUserData = async () => {
@@ -39,7 +51,22 @@ const ProfileScreen = () => {
       setLoading(true);
       const user = await firebaseService.getCurrentUser();
       if (user) {
-        setCurrentUser(user);
+        // Get updated user stats with XP and level information
+        const userStats = await firebaseService.getUserStats(user.uid);
+        
+        // Get user's global rank from leaderboard
+        const leaderboard = await firebaseService.getLeaderboard();
+        const userRank = leaderboard.findIndex(player => player.id === user.uid) + 1;
+        
+        // Merge stats with user data
+        const userWithStats = {
+          ...user,
+          ...userStats,
+          globalRank: userRank > 0 ? userRank : 'Not ranked'
+        };
+        
+        setCurrentUser(userWithStats);
+        
         // Load user transactions for recent games
         const transactions = await firebaseService.getUserTransactions(user.uid);
         setUserTransactions(transactions.slice(0, 10)); // Show last 10 transactions
@@ -58,7 +85,7 @@ const ProfileScreen = () => {
   }, []);
 
   const handleAddMoney = () => {
-    router.push('/profile/wallet');
+    router.push('wallet');
   };
 
   const handleLogout = () => {
@@ -92,14 +119,20 @@ const ProfileScreen = () => {
     rank: currentUser.rank || 0,
     achievements: 0, // Will be calculated based on actual achievements
     tournaments: 0, // Will be calculated based on tournament participation
+    xp: currentUser.xp || 0,
+    level: currentUser.level || 1,
+    userRank: currentUser.userRank || 'Bronze V',
+    nextLevelXp: currentUser.nextLevelXp || 500,
+    xpProgress: currentUser.xpProgress || { current: 0, required: 500 },
+    globalRank: currentUser.globalRank || 'Not ranked'
   } : {};
 
   // Generate recent games from transactions
   const recentGames = userTransactions
-    .filter(t => t.type === 'credit' || t.type === 'debit')
+    .filter(t => (t.type === 'credit' || t.type === 'debit') && (t.game === 'Ludo Classic' || t.game === 'Speed Ludo')) // Filter for Ludo games
     .map((transaction, index) => ({
       id: transaction.id || index,
-      game: transaction.description?.includes('Tournament') ? 'Tournament' : 'Quick Match',
+      game: transaction.game || 'Ludo Game',
       result: transaction.type === 'credit' ? 'Won' : 'Lost',
       earnings: transaction.type === 'credit' ? `+₹${transaction.amount}` : `-₹${transaction.amount}`,
       time: formatTimeAgo(transaction.timestamp)
@@ -110,29 +143,29 @@ const ProfileScreen = () => {
   const achievements = [
     { 
       id: 1, 
-      title: 'First Win', 
-      description: 'Win your first game', 
+      title: 'First Ludo Win', 
+      description: 'Win your first Ludo game', 
       icon: 'trophy-outline', 
       earned: (currentUser?.gamesWon || 0) > 0 
     },
     { 
       id: 2, 
-      title: 'Winning Streak', 
-      description: 'Win 5 games in a row', 
+      title: 'Ludo Streak', 
+      description: 'Win 5 Ludo games in a row', 
       icon: 'flame-outline', 
       earned: (currentUser?.gamesWon || 0) >= 5 
     },
     { 
       id: 3, 
-      title: 'Tournament Champion', 
-      description: 'Win a tournament', 
+      title: 'Ludo Tournament Champion', 
+      description: 'Win a Ludo tournament', 
       icon: 'medal-outline', 
       earned: false // Would be calculated from tournament data
     },
     { 
       id: 4, 
-      title: 'High Roller', 
-      description: 'Earn ₹10,000 in total', 
+      title: 'Ludo High Roller', 
+      description: 'Earn ₹10,000 in Ludo games', 
       icon: 'diamond-outline', 
       earned: (currentUser?.totalEarnings || 0) >= 10000 
     },
@@ -172,11 +205,11 @@ const ProfileScreen = () => {
           <Text style={styles.statLabel}>Win Rate</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>₹{userStats.totalEarnings.toLocaleString()}</Text>
+          <Text style={styles.statValue}>₹{userStats.totalEarnings}</Text>
           <Text style={styles.statLabel}>Total Earnings</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>#{userStats.rank || 'N/A'}</Text>
+          <Text style={styles.statValue}>{userStats.globalRank}</Text>
           <Text style={styles.statLabel}>Global Rank</Text>
         </View>
         <View style={styles.statCard}>
@@ -292,9 +325,11 @@ const ProfileScreen = () => {
   const userProfile = {
     name: currentUser.fullName || 'Anonymous',
     username: `@${(currentUser.fullName || 'user').toLowerCase().replace(/\s+/g, '')}`,
-    level: Math.floor((currentUser.gamesWon || 0) / 5) + 1, // Simple level calculation
-    experience: (currentUser.gamesWon || 0) * 100,
-    nextLevelExp: (Math.floor((currentUser.gamesWon || 0) / 5) + 1) * 500,
+    level: userStats.level || 1,
+    rank: userStats.userRank || 'Bronze V',
+    experience: userStats.xp || 0,
+    nextLevelExp: userStats.nextLevelXp || 500,
+    xpProgress: userStats.xpProgress || { current: 0, required: 500 },
     joinDate: currentUser.createdAt ? new Date(currentUser.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Recently',
     bio: 'Gaming enthusiast and tournament player.',
   };
@@ -327,13 +362,11 @@ const ProfileScreen = () => {
             <Text style={styles.profileUsername}>{userProfile.username}</Text>
             <Text style={styles.profileBio}>{userProfile.bio}</Text>
             <Text style={styles.joinDate}>Joined {userProfile.joinDate}</Text>
+            <View style={styles.levelRankContainer}>
+              <Text style={styles.levelText}>Level {userProfile.level}</Text>
+              <Text style={styles.rankText}>{userProfile.rank}</Text>
+            </View>
           </View>
-
-          {/* Logout Button */}
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color="#FF4444" />
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Experience Bar */}
@@ -348,7 +381,11 @@ const ProfileScreen = () => {
             <View 
               style={[
                 styles.experienceFill,
-                { width: `${Math.min((userProfile.experience / userProfile.nextLevelExp) * 100, 100)}%` }
+                { 
+                  width: userProfile.xpProgress && userProfile.xpProgress.required > 0 
+                    ? `${Math.min((userProfile.xpProgress.current / userProfile.xpProgress.required) * 100, 100)}%` 
+                    : '0%'
+                }
               ]}
             />
           </View>
@@ -451,10 +488,29 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#000000',
   },
+  levelRankContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
   levelText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 'bold',
-    color: '#000000',
+    color: '#FFFFFF',
+    backgroundColor: '#333333',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  rankText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#FFD700',
+    backgroundColor: '#333333',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   profileInfo: {
     alignItems: 'center',
@@ -481,22 +537,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666666',
     textAlign: 'center',
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#FF4444',
-  },
-  logoutText: {
-    color: '#FF4444',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 4,
   },
   experienceContainer: {
     marginBottom: 24,

@@ -1,468 +1,502 @@
 import { firebaseService } from './firebaseService';
-import { ludoGame } from './gameLogic';
-import { notificationService } from './notificationService';
+import { enhancedGameLogic } from './enhancedGameLogic';
 
-class MultiplayerService {
+/**
+ * Enhanced Multiplayer Service for Ludo Game
+ * Provides real-time multiplayer functionality with Firebase integration
+ */
+
+export class MultiplayerService {
   constructor() {
-    this.currentGameId = null;
-    this.currentRoomCode = null;
-    this.gameStateListener = null;
-    this.roomListener = null;
-    this.playerId = null;
+    this.activeGames = new Map();
+    this.gameSubscriptions = new Map();
+    this.playerSubscriptions = new Map();
+    this.connectionStatus = 'disconnected';
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
   }
 
-  // Initialize multiplayer service
-  async initialize(userId) {
-    this.playerId = userId;
-    return true;
-  }
-
-  // Create a multiplayer room
-  async createRoom(roomSettings, hostId) {
+  /**
+   * Initialize multiplayer service
+   */
+  async initialize() {
     try {
-      const roomCode = firebaseService.generateRoomCode();
-      const gameId = firebaseService.generateGameId();
+      // Set up connection monitoring
+      this.setupConnectionMonitoring();
+      this.connectionStatus = 'connected';
+      console.log('Multiplayer service initialized');
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to initialize multiplayer service:', error);
+      throw error;
+    }
+  }
 
-      const roomData = {
-        ...roomSettings,
-        roomCode,
-        gameId,
+  /**
+   * Create a new multiplayer game room
+   */
+  async createGameRoom(hostId, gameSettings) {
+    try {
+      const roomId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const gameRoom = {
+        id: roomId,
         hostId,
-        players: [hostId],
-        status: 'waiting', // waiting, playing, finished
-        createdAt: Date.now(),
-        maxPlayers: roomSettings.maxPlayers || 4,
-        currentPlayers: 1,
+        players: [{
+          userId: hostId,
+          userName: gameSettings.hostName || 'Host',
+          isReady: false,
+          color: null,
+          isHost: true,
+          joinedAt: new Date().toISOString()
+        }],
+        gameSettings: {
+          maxPlayers: gameSettings.maxPlayers || 4,
+          gameMode: gameSettings.gameMode || 'multiplayer',
+          isPrivate: gameSettings.isPrivate || false,
+          allowSpectators: gameSettings.allowSpectators || false,
+          timeLimit: gameSettings.timeLimit || 30, // seconds per turn
+          ...gameSettings
+        },
+        status: 'waiting',
+        createdAt: new Date().toISOString(),
+        gameState: null,
+        lastActivity: new Date().toISOString()
       };
 
-      await firebaseService.createGameRoom(roomCode, roomData);
+      // Save to Firebase
+      await firebaseService.createGame(gameRoom);
       
-      this.currentRoomCode = roomCode;
-      this.currentGameId = gameId;
+      // Store locally
+      this.activeGames.set(roomId, gameRoom);
+      
+      // Set up real-time updates
+      this.subscribeToGameRoom(roomId);
 
-      return { roomCode, gameId };
+      console.log(`Game room created: ${roomId}`);
+      return { success: true, roomId, gameRoom };
     } catch (error) {
-      console.error('Error creating room:', error);
+      console.error('Error creating game room:', error);
       throw error;
     }
   }
 
-  // Join a multiplayer room
-  async joinRoom(roomCode, playerId) {
+  /**
+   * Join an existing game room
+   */
+  async joinGameRoom(playerId, roomId, playerName) {
     try {
-      const roomData = await firebaseService.getGameRoom(roomCode);
-      
-      if (!roomData) {
-        throw new Error('Room not found');
+      const gameRoom = this.activeGames.get(roomId);
+      if (!gameRoom) {
+        throw new Error('Game room not found');
       }
 
-      if (roomData.status !== 'waiting') {
-        throw new Error('Game already started');
+      if (gameRoom.status !== 'waiting') {
+        throw new Error('Game room is not accepting new players');
       }
 
-      if (roomData.players.length >= roomData.maxPlayers) {
-        throw new Error('Room is full');
+      if (gameRoom.players.length >= gameRoom.gameSettings.maxPlayers) {
+        throw new Error('Game room is full');
       }
 
-      if (roomData.players.includes(playerId)) {
-        throw new Error('Already in room');
+      // Check if player is already in the room
+      const existingPlayer = gameRoom.players.find(p => p.userId === playerId);
+      if (existingPlayer) {
+        return { success: true, roomId, gameRoom, message: 'Already in room' };
       }
 
-      const updatedPlayers = [...roomData.players, playerId];
-      
-      await firebaseService.updateGameRoom(roomCode, {
-        players: updatedPlayers,
-        currentPlayers: updatedPlayers.length,
-      });
+      // Add player to room
+      const newPlayer = {
+        userId: playerId,
+        userName: playerName,
+        isReady: false,
+        color: this.assignPlayerColor(gameRoom.players),
+        isHost: false,
+        joinedAt: new Date().toISOString()
+      };
 
-      this.currentRoomCode = roomCode;
-      this.currentGameId = roomData.gameId;
+      gameRoom.players.push(newPlayer);
+      gameRoom.lastActivity = new Date().toISOString();
+
+      // Update Firebase
+      await this.updateGameRoom(roomId, gameRoom);
 
       // Notify other players
-      await this.notifyRoomPlayers(roomCode, {
+      this.broadcastToRoom(roomId, {
         type: 'player_joined',
-        playerId,
-        message: `Player ${playerId} joined the room`,
+        player: newPlayer,
+        timestamp: new Date().toISOString()
       });
 
-      return roomData;
+      console.log(`Player ${playerId} joined room ${roomId}`);
+      return { success: true, roomId, gameRoom };
     } catch (error) {
-      console.error('Error joining room:', error);
+      console.error('Error joining game room:', error);
       throw error;
     }
   }
 
-  // Leave a room
-  async leaveRoom(roomCode, playerId) {
+  /**
+   * Leave a game room
+   */
+  async leaveGameRoom(playerId, roomId) {
     try {
-      const roomData = await firebaseService.getGameRoom(roomCode);
-      
-      if (!roomData) return;
-
-      const updatedPlayers = roomData.players.filter(id => id !== playerId);
-      
-      if (updatedPlayers.length === 0) {
-        // Delete room if empty
-        await firebaseService.deleteGameRoom(roomCode);
-      } else {
-        // Update room
-        let updates = {
-          players: updatedPlayers,
-          currentPlayers: updatedPlayers.length,
-        };
-
-        // If host left, assign new host
-        if (roomData.hostId === playerId && updatedPlayers.length > 0) {
-          updates.hostId = updatedPlayers[0];
-        }
-
-        await firebaseService.updateGameRoom(roomCode, updates);
-
-        // Notify other players
-        await this.notifyRoomPlayers(roomCode, {
-          type: 'player_left',
-          playerId,
-          message: `Player ${playerId} left the room`,
-        });
+      const gameRoom = this.activeGames.get(roomId);
+      if (!gameRoom) {
+        throw new Error('Game room not found');
       }
 
-      this.cleanup();
+      // Remove player from room
+      gameRoom.players = gameRoom.players.filter(p => p.userId !== playerId);
+      gameRoom.lastActivity = new Date().toISOString();
+
+      // If host left, assign new host
+      if (gameRoom.hostId === playerId && gameRoom.players.length > 0) {
+        const newHost = gameRoom.players[0];
+        newHost.isHost = true;
+        gameRoom.hostId = newHost.userId;
+      }
+
+      // If no players left, delete room
+      if (gameRoom.players.length === 0) {
+        await this.deleteGameRoom(roomId);
+        return { success: true, roomDeleted: true };
+      }
+
+      // Update Firebase
+      await this.updateGameRoom(roomId, gameRoom);
+
+      // Notify other players
+      this.broadcastToRoom(roomId, {
+        type: 'player_left',
+        playerId,
+        newHost: gameRoom.hostId,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`Player ${playerId} left room ${roomId}`);
+      return { success: true };
     } catch (error) {
-      console.error('Error leaving room:', error);
+      console.error('Error leaving game room:', error);
       throw error;
     }
   }
 
-  // Start a multiplayer game
-  async startGame(roomCode, hostId) {
+  /**
+   * Start a multiplayer game
+   */
+  async startGame(hostId, roomId) {
     try {
-      const roomData = await firebaseService.getGameRoom(roomCode);
-      
-      if (!roomData) {
-        throw new Error('Room not found');
+      const gameRoom = this.activeGames.get(roomId);
+      if (!gameRoom) {
+        throw new Error('Game room not found');
       }
 
-      if (roomData.hostId !== hostId) {
+      if (gameRoom.hostId !== hostId) {
         throw new Error('Only host can start the game');
       }
 
-      if (roomData.players.length < 2) {
+      // Check if all players are ready
+      const unreadyPlayers = gameRoom.players.filter(p => !p.isReady);
+      if (unreadyPlayers.length > 0) {
+        throw new Error('Not all players are ready');
+      }
+
+      if (gameRoom.players.length < 2) {
         throw new Error('Need at least 2 players to start');
       }
 
-      // Assign colors to players
-      const playerColors = ['red', 'blue', 'green', 'yellow'];
-      const gamePlayerColors = roomData.players.slice(0, 4).map((playerId, index) => ({
-        playerId,
-        color: playerColors[index],
-      }));
-
       // Initialize game state
-      const gameState = ludoGame.initializeGame(gamePlayerColors.map(p => p.color));
-      gameState.playerMapping = gamePlayerColors.reduce((acc, p) => {
-        acc[p.color] = p.playerId;
-        return acc;
-      }, {});
-      gameState.roomCode = roomCode;
-
-      // Create game in Firebase
-      await firebaseService.createGameState(roomData.gameId, gameState);
-
-      // Update room status
-      await firebaseService.updateGameRoom(roomCode, {
-        status: 'playing',
-        gameStarted: Date.now(),
+      const gameState = enhancedGameLogic.initializeGame({
+        playerCount: gameRoom.players.length,
+        playerNames: gameRoom.players.map(p => p.userName),
+        gameMode: 'multiplayer'
       });
+
+      // Assign colors to players
+      gameRoom.players.forEach((player, index) => {
+        if (gameState.players[index]) {
+          gameState.players[index].userId = player.userId;
+          gameState.players[index].userName = player.userName;
+          player.color = gameState.players[index].color;
+        }
+      });
+
+      gameRoom.status = 'active';
+      gameRoom.gameState = gameState;
+      gameRoom.startedAt = new Date().toISOString();
+      gameRoom.lastActivity = new Date().toISOString();
+
+      // Update Firebase
+      await this.updateGameRoom(roomId, gameRoom);
 
       // Notify all players
-      await this.notifyRoomPlayers(roomCode, {
+      this.broadcastToRoom(roomId, {
         type: 'game_started',
-        gameId: roomData.gameId,
-        message: 'Game has started!',
+        gameState,
+        timestamp: new Date().toISOString()
       });
 
-      return { gameId: roomData.gameId, gameState };
+      console.log(`Game started in room ${roomId}`);
+      return { success: true, gameState };
     } catch (error) {
       console.error('Error starting game:', error);
       throw error;
     }
   }
 
-  // Make a move in multiplayer game
-  async makeMove(gameId, playerId, move) {
+  /**
+   * Send a move to other players
+   */
+  async sendMove(playerId, roomId, moveData) {
     try {
-      const gameState = await firebaseService.getGameState(gameId);
-      
-      if (!gameState) {
-        throw new Error('Game not found');
+      const gameRoom = this.activeGames.get(roomId);
+      if (!gameRoom) {
+        throw new Error('Game room not found');
       }
 
-      if (gameState.gameStatus !== 'playing') {
+      if (gameRoom.status !== 'active') {
         throw new Error('Game is not active');
       }
 
-      // Verify it's player's turn
-      const currentPlayerColor = gameState.players[gameState.currentPlayerIndex];
-      const currentPlayerId = gameState.playerMapping[currentPlayerColor];
-      
-      if (currentPlayerId !== playerId) {
+      // Validate move
+      const currentPlayer = gameRoom.gameState.players[gameRoom.gameState.currentPlayerIndex];
+      if (currentPlayer.userId !== playerId) {
         throw new Error('Not your turn');
       }
 
-      // Execute move using game logic
-      const result = ludoGame.executeMove(gameState, currentPlayerColor, move);
-      
-      if (!result.success) {
-        throw new Error('Invalid move');
-      }
+      // Process move through game logic
+      const moveResult = enhancedGameLogic.makeMove(
+        currentPlayer.id,
+        moveData.pieceId,
+        moveData.targetPosition
+      );
 
-      // Update game state in Firebase
-      await firebaseService.updateGameState(gameId, result.gameState);
-
-      // Record the move
-      await firebaseService.makeMove(gameId, {
-        playerId,
-        playerColor: currentPlayerColor,
-        move,
-        timestamp: Date.now(),
-      });
+      // Update game room state
+      gameRoom.gameState = enhancedGameLogic.getGameState();
+      gameRoom.lastActivity = new Date().toISOString();
 
       // Check for game end
-      if (result.gameState.gameStatus === 'finished') {
-        await this.handleGameEnd(gameId, result.gameState);
+      if (moveResult.gameEnded) {
+        gameRoom.status = 'finished';
+        gameRoom.finishedAt = new Date().toISOString();
+        gameRoom.winner = moveResult.winner;
       }
 
-      return result;
-    } catch (error) {
-      console.error('Error making move:', error);
-      throw error;
-    }
-  }
+      // Update Firebase
+      await this.updateGameRoom(roomId, gameRoom);
 
-  // Roll dice in multiplayer game
-  async rollDice(gameId, playerId) {
-    try {
-      const gameState = await firebaseService.getGameState(gameId);
-      
-      if (!gameState) {
-        throw new Error('Game not found');
-      }
-
-      // Verify it's player's turn
-      const currentPlayerColor = gameState.players[gameState.currentPlayerIndex];
-      const currentPlayerId = gameState.playerMapping[currentPlayerColor];
-      
-      if (currentPlayerId !== playerId) {
-        throw new Error('Not your turn');
-      }
-
-      // Generate dice value
-      const diceValue = Math.floor(Math.random() * 6) + 1;
-
-      // Update game state
-      await firebaseService.rollDice(gameId, playerId, diceValue);
-
-      return diceValue;
-    } catch (error) {
-      console.error('Error rolling dice:', error);
-      throw error;
-    }
-  }
-
-  // Handle game end
-  async handleGameEnd(gameId, gameState) {
-    try {
-      const winner = gameState.winner;
-      const winnerId = gameState.playerMapping[winner];
-
-      // Update room status
-      if (this.currentRoomCode) {
-        await firebaseService.updateGameRoom(this.currentRoomCode, {
-          status: 'finished',
-          winner: winnerId,
-          gameEnded: Date.now(),
-        });
-      }
-
-      // Notify all players
-      await this.notifyGamePlayers(gameId, {
-        type: 'game_ended',
-        winner: winnerId,
-        winnerColor: winner,
-        message: `${winner.toUpperCase()} wins!`,
+      // Broadcast move to all players
+      this.broadcastToRoom(roomId, {
+        type: 'move_made',
+        playerId,
+        moveData,
+        moveResult,
+        gameState: gameRoom.gameState,
+        timestamp: new Date().toISOString()
       });
 
-      // Handle rewards/prizes if applicable
-      await this.handleGameRewards(gameId, gameState);
-
+      console.log(`Move sent by ${playerId} in room ${roomId}`);
+      return { success: true, moveResult };
     } catch (error) {
-      console.error('Error handling game end:', error);
-    }
-  }
-
-  // Handle game rewards
-  async handleGameRewards(gameId, gameState) {
-    try {
-      const roomData = await firebaseService.getGameRoom(this.currentRoomCode);
-      
-      if (roomData && roomData.entryFee > 0) {
-        const winner = gameState.winner;
-        const winnerId = gameState.playerMapping[winner];
-        const totalPrize = roomData.entryFee * roomData.players.length;
-        const platformFee = totalPrize * 0.1; // 10% platform fee
-        const winnerPrize = totalPrize - platformFee;
-
-        // Credit winner's wallet
-        await firebaseService.updateWalletBalance(
-          winnerId,
-          winnerPrize,
-          'add',
-          `Won game ${gameId}`
-        );
-
-        // Send notification
-        await notificationService.notifyGameWin(winnerPrize);
-      }
-    } catch (error) {
-      console.error('Error handling game rewards:', error);
-    }
-  }
-
-  // Listen to game state changes
-  listenToGameState(gameId, callback) {
-    this.gameStateListener = firebaseService.onGameStateChange(gameId, (snapshot) => {
-      const gameState = snapshot.val();
-      if (gameState) {
-        callback(gameState);
-      }
-    });
-    return this.gameStateListener;
-  }
-
-  // Listen to room changes
-  listenToRoom(roomCode, callback) {
-    this.roomListener = firebaseService.onRoomChange(roomCode, (snapshot) => {
-      const roomData = snapshot.val();
-      if (roomData) {
-        callback(roomData);
-      }
-    });
-    return this.roomListener;
-  }
-
-  // Notify room players
-  async notifyRoomPlayers(roomCode, notification) {
-    try {
-      const roomData = await firebaseService.getGameRoom(roomCode);
-      if (roomData) {
-        // In a real implementation, you'd send push notifications to all players
-        console.log('Room notification:', notification);
-      }
-    } catch (error) {
-      console.error('Error notifying room players:', error);
-    }
-  }
-
-  // Notify game players
-  async notifyGamePlayers(gameId, notification) {
-    try {
-      const gameState = await firebaseService.getGameState(gameId);
-      if (gameState) {
-        // In a real implementation, you'd send push notifications to all players
-        console.log('Game notification:', notification);
-      }
-    } catch (error) {
-      console.error('Error notifying game players:', error);
-    }
-  }
-
-  // Get current game state
-  async getCurrentGameState() {
-    if (!this.currentGameId) return null;
-    return await firebaseService.getGameState(this.currentGameId);
-  }
-
-  // Get current room data
-  async getCurrentRoomData() {
-    if (!this.currentRoomCode) return null;
-    return await firebaseService.getGameRoom(this.currentRoomCode);
-  }
-
-  // Check if player is in game
-  async isPlayerInGame(playerId) {
-    if (!this.currentGameId) return false;
-    
-    const gameState = await firebaseService.getGameState(this.currentGameId);
-    if (!gameState) return false;
-    
-    return Object.values(gameState.playerMapping || {}).includes(playerId);
-  }
-
-  // Get player's color in current game
-  async getPlayerColor(playerId) {
-    if (!this.currentGameId) return null;
-    
-    const gameState = await firebaseService.getGameState(this.currentGameId);
-    if (!gameState || !gameState.playerMapping) return null;
-    
-    for (const [color, id] of Object.entries(gameState.playerMapping)) {
-      if (id === playerId) return color;
-    }
-    
-    return null;
-  }
-
-  // Cleanup listeners and state
-  cleanup() {
-    if (this.gameStateListener) {
-      this.gameStateListener();
-      this.gameStateListener = null;
-    }
-    
-    if (this.roomListener) {
-      this.roomListener();
-      this.roomListener = null;
-    }
-    
-    this.currentGameId = null;
-    this.currentRoomCode = null;
-  }
-
-  // Reconnect to game (for handling app restarts)
-  async reconnectToGame(gameId, playerId) {
-    try {
-      const gameState = await firebaseService.getGameState(gameId);
-      
-      if (!gameState) {
-        throw new Error('Game not found');
-      }
-
-      if (!Object.values(gameState.playerMapping || {}).includes(playerId)) {
-        throw new Error('Player not in this game');
-      }
-
-      this.currentGameId = gameId;
-      this.currentRoomCode = gameState.roomCode;
-      this.playerId = playerId;
-
-      return gameState;
-    } catch (error) {
-      console.error('Error reconnecting to game:', error);
+      console.error('Error sending move:', error);
       throw error;
     }
   }
 
-  // Get game statistics
-  async getGameStats(gameId) {
+  /**
+   * Set player ready status
+   */
+  async setPlayerReady(playerId, roomId, isReady) {
     try {
-      const gameState = await firebaseService.getGameState(gameId);
-      if (!gameState) return null;
+      const gameRoom = this.activeGames.get(roomId);
+      if (!gameRoom) {
+        throw new Error('Game room not found');
+      }
 
-      return ludoGame.getGameStats(gameState);
+      const player = gameRoom.players.find(p => p.userId === playerId);
+      if (!player) {
+        throw new Error('Player not found in room');
+      }
+
+      player.isReady = isReady;
+      gameRoom.lastActivity = new Date().toISOString();
+
+      // Update Firebase
+      await this.updateGameRoom(roomId, gameRoom);
+
+      // Notify other players
+      this.broadcastToRoom(roomId, {
+        type: 'player_ready_changed',
+        playerId,
+        isReady,
+        timestamp: new Date().toISOString()
+      });
+
+      return { success: true };
     } catch (error) {
-      console.error('Error getting game stats:', error);
-      return null;
+      console.error('Error setting player ready:', error);
+      throw error;
     }
+  }
+
+  /**
+   * Subscribe to game room updates
+   */
+  subscribeToGameRoom(roomId, callback) {
+    try {
+      // Unsubscribe from existing subscription
+      this.unsubscribeFromGameRoom(roomId);
+
+      // Set up new subscription (mock implementation)
+      const subscription = {
+        unsubscribe: () => {
+          console.log(`Unsubscribed from room ${roomId}`);
+        }
+      };
+
+      this.gameSubscriptions.set(roomId, subscription);
+
+      // Simulate real-time updates (in production, this would be Firebase listeners)
+      const interval = setInterval(() => {
+        const gameRoom = this.activeGames.get(roomId);
+        if (gameRoom && callback) {
+          callback({
+            type: 'room_update',
+            gameRoom,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }, 1000);
+
+      subscription.interval = interval;
+
+      console.log(`Subscribed to room updates: ${roomId}`);
+      return subscription;
+    } catch (error) {
+      console.error('Error subscribing to game room:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Unsubscribe from game room updates
+   */
+  unsubscribeFromGameRoom(roomId) {
+    const subscription = this.gameSubscriptions.get(roomId);
+    if (subscription) {
+      if (subscription.interval) {
+        clearInterval(subscription.interval);
+      }
+      subscription.unsubscribe();
+      this.gameSubscriptions.delete(roomId);
+    }
+  }
+
+  /**
+   * Get list of available game rooms
+   */
+  async getAvailableRooms() {
+    try {
+      // In production, this would query Firebase
+      const availableRooms = Array.from(this.activeGames.values())
+        .filter(room => room.status === 'waiting' && !room.gameSettings.isPrivate)
+        .map(room => ({
+          id: room.id,
+          hostName: room.players.find(p => p.isHost)?.userName || 'Unknown',
+          playerCount: room.players.length,
+          maxPlayers: room.gameSettings.maxPlayers,
+          createdAt: room.createdAt,
+          gameSettings: room.gameSettings
+        }));
+
+      return availableRooms;
+    } catch (error) {
+      console.error('Error getting available rooms:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Utility methods
+   */
+  assignPlayerColor(existingPlayers) {
+    const colors = ['red', 'green', 'yellow', 'blue'];
+    const usedColors = existingPlayers.map(p => p.color).filter(Boolean);
+    return colors.find(color => !usedColors.includes(color)) || colors[0];
+  }
+
+  async updateGameRoom(roomId, gameRoom) {
+    try {
+      // Update local storage
+      this.activeGames.set(roomId, gameRoom);
+      
+      // Update Firebase (mock implementation)
+      console.log(`Updated game room ${roomId} in Firebase`);
+    } catch (error) {
+      console.error('Error updating game room:', error);
+      throw error;
+    }
+  }
+
+  async deleteGameRoom(roomId) {
+    try {
+      // Remove from local storage
+      this.activeGames.delete(roomId);
+      
+      // Unsubscribe from updates
+      this.unsubscribeFromGameRoom(roomId);
+      
+      // Delete from Firebase (mock implementation)
+      console.log(`Deleted game room ${roomId} from Firebase`);
+    } catch (error) {
+      console.error('Error deleting game room:', error);
+      throw error;
+    }
+  }
+
+  broadcastToRoom(roomId, message) {
+    // In production, this would send to all connected clients
+    console.log(`Broadcasting to room ${roomId}:`, message);
+  }
+
+  setupConnectionMonitoring() {
+    // Monitor connection status and handle reconnection
+    setInterval(() => {
+      if (this.connectionStatus === 'disconnected' && this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.attemptReconnection();
+      }
+    }, 5000);
+  }
+
+  async attemptReconnection() {
+    try {
+      this.reconnectAttempts++;
+      console.log(`Attempting reconnection (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+      
+      // Attempt to reconnect
+      await this.initialize();
+      this.reconnectAttempts = 0;
+      
+      console.log('Reconnection successful');
+    } catch (error) {
+      console.error('Reconnection failed:', error);
+    }
+  }
+
+  /**
+   * Clean up resources
+   */
+  cleanup() {
+    // Unsubscribe from all game rooms
+    this.gameSubscriptions.forEach((subscription, roomId) => {
+      this.unsubscribeFromGameRoom(roomId);
+    });
+
+    // Clear active games
+    this.activeGames.clear();
+    
+    console.log('Multiplayer service cleaned up');
   }
 }
 

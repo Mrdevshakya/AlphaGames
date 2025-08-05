@@ -1,13 +1,12 @@
 {
   "expo": {
-    "name": "gamin-app",
-    "slug": "gamin-app",
+    "name": "AlphaGame",
+    "slug": "alpha-game",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "gaminapp",
+    "scheme": "alpha-game",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },

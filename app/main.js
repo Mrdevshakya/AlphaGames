@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 // Import screens
-import SplashScreen from '../src/components/SplashScreen';
+import SplashScreen from '$components/SplashScreen';
 import { firebaseService } from '../src/services/firebaseService';
 import LoginScreen from './(auth)/LoginScreen';
 import RegisterScreen from './(auth)/RegisterScreen';

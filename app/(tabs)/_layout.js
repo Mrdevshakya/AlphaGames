@@ -35,7 +35,7 @@ export default function TabLayout() {
         screenOptions={{
           tabBarActiveTintColor: '#FFFFFF',
           tabBarInactiveTintColor: '#666666',
-          headerShown: !segments.includes('setting'),
+          headerShown: !segments.includes('setting') && !segments.includes('tournaments') && !segments.includes('leaderboard'),
           headerStyle: {
             backgroundColor: '#000000',
             borderBottomWidth: 1,
@@ -85,6 +85,7 @@ export default function TabLayout() {
           name="index"
           options={{
             title: 'Home',
+            headerShown: false,
             headerTitle: 'AlphaGames',
             headerRight: () => (
               <TouchableOpacity
@@ -112,6 +113,7 @@ export default function TabLayout() {
           name="games"
           options={{
             title: 'Games',
+            headerShown: false,
             tabBarIcon: ({ color, size, focused }) => (
               <View style={[styles.iconContainer, focused && styles.focusedIconContainer]}>
                 <Ionicons name={focused ? "game-controller" : "game-controller-outline"} size={size} color={color} />
@@ -123,6 +125,7 @@ export default function TabLayout() {
           name="tournaments"
           options={{
             title: 'Tournaments',
+            headerShown: false,
             tabBarIcon: ({ color, size, focused }) => (
               <View style={[styles.iconContainer, focused && styles.focusedIconContainer]}>
                 <Ionicons name={focused ? "trophy" : "trophy-outline"} size={size} color={color} />
@@ -134,7 +137,7 @@ export default function TabLayout() {
           name="leaderboard"
           options={{
             title: 'Leaderboard',
-            headerTitle: 'Rankings',
+            headerShown: false,
             tabBarIcon: ({ color, size, focused }) => (
               <View style={[styles.iconContainer, focused && styles.focusedIconContainer]}>
                 <Ionicons name={focused ? "podium" : "podium-outline"} size={size} color={color} />

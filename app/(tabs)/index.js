@@ -1,23 +1,25 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  StatusBar,
-  Animated,
-  RefreshControl,
-  Alert,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Font from 'expo-font';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  Dimensions,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { firebaseService } from '../../src/services/firebaseService';
 
 const { width, height } = Dimensions.get('window');
 
-const HomeScreen = ({ navigation }) => {
+const HomeScreen = () => {
+  const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userStats, setUserStats] = useState({
@@ -36,8 +38,19 @@ const HomeScreen = ({ navigation }) => {
   const slideAnim = useRef(new Animated.Value(30)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  
+  // Font loading state
+  const [fontLoaded, setFontLoaded] = useState(false);
 
   useEffect(() => {
+    async function loadFonts() {
+      await Font.loadAsync({
+        'TheBigmaker': require('../../assets/fonts/The Bigmaker PersonalUseOnly.ttf'),
+      });
+      setFontLoaded(true);
+    }
+    
+    loadFonts();
     loadUserData();
     loadTournaments();
     
@@ -101,12 +114,12 @@ const HomeScreen = ({ navigation }) => {
   const loadTournaments = async () => {
     try {
       const tournaments = await firebaseService.getAllTournaments();
-      // Filter for live and upcoming tournaments
-      const activeTournaments = tournaments.filter(t => 
-        t.status === 'live' || t.status === 'upcoming'
-      ).slice(0, 3); // Show only top 3
+      // Filter for live and upcoming Ludo tournaments
+      const activeLudoTournaments = tournaments.filter(t => 
+        (t.status === 'live' || t.status === 'upcoming') && (t.game === 'Ludo Classic' || t.game === 'Speed Ludo')
+      ).slice(0, 3); // Show only top 3 Ludo tournaments
       
-      setLiveTournaments(activeTournaments);
+      setLiveTournaments(activeLudoTournaments);
     } catch (error) {
       console.error('Error loading tournaments:', error);
       // Set empty array on error
@@ -121,11 +134,19 @@ const HomeScreen = ({ navigation }) => {
   }, []);
 
   const handleAddMoney = () => {
-    Alert.alert(
-      'Add Money',
-      'This feature will be implemented with payment gateway integration.',
-      [{ text: 'OK' }]
-    );
+    router.push('wallet/add-money');
+  };
+
+  const handleWithdrawMoney = () => {
+    if ((currentUser?.walletBalance || 0) < 50) {
+      Alert.alert(
+        'Insufficient Balance',
+        'Minimum withdrawal amount is ₹50. Please add money to your wallet first.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    router.push('wallet/withdraw');
   };
 
   const handlePlayGame = (gameMode) => {
@@ -171,8 +192,8 @@ const HomeScreen = ({ navigation }) => {
   const gameModesData = [
     {
       id: 1,
-      title: 'Quick Match',
-      subtitle: 'Fast-paced 5-minute games',
+      title: 'Ludo Quick Match',
+      subtitle: 'Fast-paced 5-minute Ludo games',
       icon: 'flash-outline',
       prize: '500',
       players: '2-4',
@@ -180,8 +201,8 @@ const HomeScreen = ({ navigation }) => {
     },
     {
       id: 2,
-      title: 'Tournament',
-      subtitle: 'Compete with 100+ players',
+      title: 'Ludo Tournament',
+      subtitle: 'Compete with 100+ players in Ludo',
       icon: 'trophy-outline',
       prize: '10,000',
       players: '100',
@@ -189,12 +210,12 @@ const HomeScreen = ({ navigation }) => {
     },
     {
       id: 3,
-      title: 'Practice Mode',
-      subtitle: 'Play with AI opponents',
+      title: 'Ludo Practice',
+      subtitle: 'Improve your Ludo skills for free',
       icon: 'school-outline',
-      prize: 'Free',
-      players: '1-4',
-      entryFee: 'Free',
+      prize: '0',
+      players: '1',
+      entryFee: '0',
     },
   ];
 
@@ -287,6 +308,13 @@ const HomeScreen = ({ navigation }) => {
           }
         ]}>
 
+          {/* AlphaGames Title */}
+          <View style={styles.titleSection}>
+            <Text style={styles.alphaGamesTitle}>
+              AlphaGames
+            </Text>
+          </View>
+          
           {/* Welcome Section */}
           <View style={styles.welcomeSection}>
             <Text style={styles.welcomeText}>
@@ -386,6 +414,17 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+  },
+  titleSection: {
+    marginBottom: 15,
+    alignItems: 'center',
+  },
+  alphaGamesTitle: {
+    fontFamily: 'TheBigmaker',
+    fontSize: 80,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 10,
   },
   welcomeSection: {
     marginBottom: 25,

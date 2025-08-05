@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -18,6 +19,7 @@ import { firebaseService } from '../../src/services/firebaseService';
 const { width } = Dimensions.get('window');
 
 const GamesScreen = () => {
+  const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -26,83 +28,81 @@ const GamesScreen = () => {
   const categories = [
     { id: 'all', name: 'All Games', icon: 'grid-outline' },
     { id: 'quick', name: 'Quick Match', icon: 'flash-outline' },
-    { id: 'tournament', name: 'Tournaments', icon: 'trophy-outline' },
-    { id: 'practice', name: 'Practice', icon: 'school-outline' },
   ];
 
   // Game modes available in the app
   const games = [
     {
       id: 1,
-      title: 'Dice Master',
-      category: 'quick',
-      players: '2-4 Players',
-      duration: '5-10 min',
-      entryFee: 50,
-      prize: 200,
-      difficulty: 'Easy',
-      icon: 'dice-outline',
-      description: 'Classic dice rolling game with strategic moves',
-    },
-    {
-      id: 2,
-      title: 'Card Battle',
-      category: 'quick',
-      players: '2-6 Players',
-      duration: '10-15 min',
-      entryFee: 100,
-      prize: 500,
-      difficulty: 'Medium',
-      icon: 'card-outline',
-      description: 'Strategic card game with multiple rounds',
-    },
-    {
-      id: 3,
-      title: 'Strategy Arena',
-      category: 'tournament',
-      players: '8-16 Players',
-      duration: '30-45 min',
-      entryFee: 200,
-      prize: 2000,
-      difficulty: 'Hard',
-      icon: 'game-controller-outline',
-      description: 'Advanced strategy game for experienced players',
-    },
-    {
-      id: 4,
-      title: 'Practice Mode',
-      category: 'practice',
-      players: '1-4 Players',
-      duration: 'Unlimited',
-      entryFee: 0,
-      prize: 0,
-      difficulty: 'All Levels',
-      icon: 'school-outline',
-      description: 'Practice with AI opponents to improve your skills',
-    },
-    {
-      id: 5,
       title: 'Ludo Classic',
       category: 'quick',
       players: '2-4 Players',
-      duration: '15-20 min',
-      entryFee: 75,
-      prize: 300,
       difficulty: 'Easy',
       icon: 'grid-outline',
       description: 'Traditional Ludo game with modern features',
+      hasSubcategories: true,
+      subcategories: [
+        {
+          id: '1v1',
+          title: '1 vs 1',
+          players: '2 Players',
+          duration: '10-15 min',
+          entryFee: 50,
+          prize: 200,
+          difficulty: 'Easy',
+          description: 'Classic head-to-head Ludo battle',
+        },
+        {
+          id: '2v2',
+          title: '2 vs 2',
+          players: '4 Players',
+          duration: '15-20 min',
+          entryFee: 100,
+          prize: 400,
+          difficulty: 'Medium',
+          description: 'Team-based Ludo with strategic gameplay',
+        },
+        {
+          id: '3-player',
+          title: '3 Players',
+          players: '3 Players',
+          duration: '12-18 min',
+          entryFee: 75,
+          prize: 300,
+          difficulty: 'Medium',
+          description: 'Three-player Ludo with unique dynamics',
+        },
+        {
+          id: '4-player',
+          title: '4 Players',
+          players: '4 Players',
+          duration: '20-25 min',
+          entryFee: 150,
+          prize: 600,
+          difficulty: 'Hard',
+          description: 'Full four-player Ludo experience',
+        }
+      ]
     },
     {
-      id: 6,
-      title: 'Speed Ludo',
+      id: 2,
+      title: 'Mines Game',
       category: 'quick',
-      players: '2-4 Players',
-      duration: '5-8 min',
-      entryFee: 25,
-      prize: 100,
-      difficulty: 'Easy',
-      icon: 'flash-outline',
-      description: 'Fast-paced Ludo with shorter game time',
+      players: '1 Player',
+      difficulty: 'Medium',
+      icon: 'nuclear-outline',
+      description: '5x5 grid Minesweeper - find all safe cells!',
+    },
+    {
+      id: 3,
+      title: 'Limbo',
+      category: 'quick',
+      players: '1 Player',
+      difficulty: 'Medium',
+      icon: 'analytics-outline',
+      description: 'Test your luck with multipliers - how high can you go?',
+      entryFee: 10,
+      prize: 50,
     },
   ];
 
@@ -138,6 +138,13 @@ const GamesScreen = () => {
       return;
     }
 
+    // Check if the game has subcategories (like Ludo Classic)
+    if (game.hasSubcategories) {
+      // Redirect to Ludo modes page
+      router.push('/ludo/modes');
+      return;
+    }
+
     if (game.category === 'practice') {
       // Practice mode is free
       Alert.alert(
@@ -145,6 +152,18 @@ const GamesScreen = () => {
         'Practice mode will be available soon! Perfect for improving your skills.',
         [{ text: 'OK' }]
       );
+      return;
+    }
+
+    // For Mines Game, go directly to the game without showing entry fees
+    if (game.title === 'Mines Game') {
+      router.push('/mines');
+      return;
+    }
+    
+    // For Limbo Game, go directly to the game without showing entry fees
+    if (game.title === 'limbo') {
+      router.push('/limbo');
       return;
     }
 
@@ -163,7 +182,11 @@ const GamesScreen = () => {
 
     Alert.alert(
       'Join Game',
-      `Do you want to play ${game.title}?\n\nEntry Fee: ₹${game.entryFee}\nPrize Pool: ₹${game.prize}\nPlayers: ${game.players}`,
+      `Do you want to play ${game.title}?
+
+Entry Fee: ₹${game.entryFee}
+Prize Pool: ₹${game.prize}
+Players: ${game.players}`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Play Now', onPress: () => startGame(game) }
@@ -175,18 +198,21 @@ const GamesScreen = () => {
     try {
       // Here you would implement the actual game creation logic
       // For now, we'll show a success message
-      Alert.alert(
-        'Game Starting',
-        `Looking for players for ${game.title}...\n\nThis feature will be fully implemented soon!`,
-        [{ text: 'OK' }]
-      );
+      if (game.title === 'Ludo Classic' || game.title === 'Speed Ludo') {
+        router.push('/ludo');
+      } else if (game.title === 'Mines Game') {
+        router.push('/mines');
+      } else if (game.title === 'Limbo') {
+        router.push('/limbo');
+      } else {
+        Alert.alert(
+          'Game Starting',
+          `Looking for players for ${game.title}...
 
-      // In a real implementation, you would:
-      // 1. Create a game room in Firebase
-      // 2. Deduct entry fee from user's wallet
-      // 3. Navigate to the game screen
-      // 4. Handle matchmaking
-
+This feature will be fully implemented soon!`,
+          [{ text: 'OK' }]
+        );
+      }
     } catch (error) {
       console.error('Error starting game:', error);
       Alert.alert('Error', 'Failed to start game. Please try again.');
@@ -202,63 +228,55 @@ const GamesScreen = () => {
   };
 
   const renderGameCard = (game) => (
-    <TouchableOpacity key={game.id} style={styles.gameCard} onPress={() => handlePlayGame(game)}>
+    <View key={game.id} style={styles.gameCard}>
       <View style={styles.gameCardContent}>
         <View style={styles.gameHeader}>
           <View style={styles.gameIconContainer}>
-            <Ionicons name={game.icon} size={32} color="#FFFFFF" />
+            <Ionicons name={game.icon} size={24} color="#FFFFFF" />
           </View>
           <View style={styles.gameInfo}>
             <Text style={styles.gameTitle}>{game.title}</Text>
             <Text style={styles.gamePlayers}>{game.players}</Text>
             <Text style={styles.gameDescription}>{game.description}</Text>
+            {game.hasSubcategories && (
+              <Text style={styles.gameDescription}>Tap to see game modes</Text>
+            )}
           </View>
-          <View style={[styles.difficultyBadge, {
-            backgroundColor: game.difficulty === 'Easy' ? '#2ecc71' : 
-                           game.difficulty === 'Medium' ? '#f39c12' : '#e74c3c'
-          }]}>
+          <View style={[
+            styles.difficultyBadge, 
+            {
+              backgroundColor: 
+                game.difficulty === 'Easy' ? '#4ecdc4' : 
+                game.difficulty === 'Medium' ? '#ffb62d' : 
+                '#ff6b6b'
+            }
+          ]}>
             <Text style={styles.difficultyText}>{game.difficulty}</Text>
           </View>
         </View>
         
         <View style={styles.gameDetails}>
           <View style={styles.detailItem}>
-            <Ionicons name="time-outline" size={16} color="#666666" />
-            <Text style={styles.detailText}>{game.duration}</Text>
-          </View>
-          <View style={styles.detailItem}>
-            <Ionicons name="card-outline" size={16} color="#666666" />
-            <Text style={styles.detailText}>
-              Entry: {game.entryFee === 0 ? 'Free' : `₹${game.entryFee}`}
-            </Text>
-          </View>
-          <View style={styles.detailItem}>
-            <Ionicons name="trophy-outline" size={16} color="#666666" />
-            <Text style={styles.detailText}>
-              Prize: {game.prize === 0 ? 'Experience' : `₹${game.prize}`}
-            </Text>
+            <Ionicons name="people-outline" size={16} color="#666666" />
+            <Text style={styles.detailText}>{game.players}</Text>
           </View>
         </View>
-
+        
         <TouchableOpacity 
-          style={[styles.playButton, {
-            backgroundColor: game.category === 'practice' ? '#3498db' : '#FFFFFF'
-          }]}
+          style={styles.playButton}
           onPress={() => handlePlayGame(game)}
         >
-          <Text style={[styles.playButtonText, {
-            color: game.category === 'practice' ? '#FFFFFF' : '#000000'
-          }]}>
-            {game.category === 'practice' ? 'Practice' : 'Play Now'}
+          <Text style={styles.playButtonText}>
+            {game.hasSubcategories ? 'Select Mode' : 'Play Now'}
           </Text>
           <Ionicons 
-            name="play" 
+            name={game.hasSubcategories ? "chevron-forward" : "play"} 
             size={16} 
-            color={game.category === 'practice' ? '#FFFFFF' : '#000000'} 
+            color="#000000" 
           />
         </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 
   return (
@@ -367,13 +385,14 @@ const styles = StyleSheet.create({
   },
   headerSafeArea: {
     backgroundColor: '#000000',
+    paddingTop: 20,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 30,
     paddingBottom: 5,
     backgroundColor: '#000000',
   },

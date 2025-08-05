@@ -1,104 +1,135 @@
-# 🎲 Ludo King - Full-Featured Gaming App
+# 🎲 AlphaGames - Multi-Game Mobile App
 
-A comprehensive Ludo game application built with React Native and Expo, similar to Zupee, featuring multiplayer gameplay, tournaments, wallet system, and real-money gaming capabilities.
+A comprehensive mobile gaming application built with React Native and Expo, featuring multiple games including Ludo, Minesweeper, and more. The app includes a wallet system, user authentication, and real-money gaming capabilities.
 
 ## 📱 Features
 
-### ✅ Phase 1 - Core Features (Completed)
+### ✅ Core Features
 - **Authentication System**
   - Phone OTP login/registration
   - User profile management
   - Auto-login functionality
 
-- **Game Board & Logic**
-  - Complete Ludo board with proper layout
-  - 4-player support with different colors
-  - Dice rolling with animations
-  - Token movement with game rules
-  - Turn-based gameplay
-  - Win/lose detection
-
-- **Room System**
-  - Create private rooms with custom settings
-  - Join rooms using 6-digit codes
-  - Room management and player lobby
-
-- **Tournament System**
-  - Browse available tournaments
-  - Join tournaments with entry fees
-  - Tournament brackets and progression
-  - Prize pool distribution
+- **Game Collection**
+  - Ludo Classic with multiple modes (1v1, 2v2, 3 Players, 4 Players)
+  - Mines Game (Minesweeper variant with betting system)
+  - More games to be added
 
 - **Wallet System**
-  - Add money via payment gateway simulation
-  - Withdraw money to UPI
+  - In-app currency management
+  - Balance display across all game screens
   - Transaction history
-  - Balance management
 
 - **User Interface**
   - Modern dark theme design
-  - Smooth animations and transitions
   - Responsive layout for all screen sizes
-  - Intuitive navigation
+  - Intuitive navigation with tab-based interface
 
-### 🚧 Phase 2 - Advanced Features (Planned)
-- **Firebase Integration**
-  - Real-time multiplayer gameplay
-  - Cloud data synchronization
-  - User authentication with Firebase Auth
-  - Firestore database integration
+### 🎮 Game Features
 
-- **Payment Integration**
-  - Razorpay/Cashfree integration
-  - Real money transactions
-  - Secure payment processing
+#### Ludo Classic
+- Multiple game modes with different player counts
+- Entry fees and prize pools for each mode
+- Dedicated mode selection screen
+- Smooth gameplay experience
 
-- **Enhanced Features**
-  - Push notifications
-  - Sound effects and music
-  - Chat system
-  - Friend system
-  - Leaderboards
+#### Mines Game
+- 5x5 grid Minesweeper variant
+- Adjustable mine count (1-24 mines)
+- Bet amount customization
+- In-app currency system (no real money transactions)
+- Gem collection mechanics
+- Cashout functionality
+- XP earning system
 
 ## 🛠 Tech Stack
 
 - **Frontend**: React Native with Expo
-- **Navigation**: React Navigation 6
+- **Navigation**: Expo Router
 - **State Management**: React Context API
-- **Storage**: AsyncStorage (Phase 1) → Firebase (Phase 2)
-- **UI Components**: Custom components with React Native
-- **Graphics**: React Native SVG for game board
+- **Database**: Firebase Firestore
+- **Authentication**: Firebase Authentication
+- **Storage**: AsyncStorage
+- **UI Components**: React Native Elements, Expo Vector Icons
 - **Animations**: React Native Animated API
-- **Notifications**: Expo Notifications
 
-## 📁 Project Structure
+## Complete Project Structure
 
 ```
-src/
-├── components/           # Reusable UI components
-│   ├── GameBoard.js     # Main Ludo board component
-│   └── DiceRoller.js    # Dice rolling component
-├── screens/             # App screens
-│   ├── LoginScreen.js   # Authentication screens
-│   ├── RegisterScreen.js
-│   ├── HomeScreen.js    # Main lobby/dashboard
-│   ├── GameScreen.js    # Game playing screen
-│   ├── CreateRoomScreen.js
-│   ├── JoinRoomScreen.js
-│   ├── TournamentsScreen.js
-│   └── WalletScreen.js
-├── services/            # Business logic services
-│   ├── gameLogic.js     # Ludo game rules and logic
-│   └── notificationService.js
-├── utils/               # Utility functions
-│   ├── constants.js     # App constants
-│   └── storage.js       # AsyncStorage wrapper
-└── assets/              # Images, sounds, fonts
-    ├── images/
-    └── sounds/
+gamin-app/
+├── app/                 # App screens and routes
+│   ├── (auth)/          # Authentication screens
+│   │   ├── LoginScreen.js
+│   │   ├── RegisterScreen.js
+│   │   └── _layout.js
+│   ├── (tabs)/          # Tab-based navigation screens
+│   │   ├── games.js     # Games listing screen
+│   │   ├── index.js
+│   │   ├── leaderboard.js
+│   │   ├── tournaments.js
+│   │   └── profile/     # Profile section
+│   │       ├── index.js
+│   │       ├── _layout.js
+│   │       └── setting/ # Settings section
+│   │           ├── about.js
+│   │           ├── edit-profile.js
+│   │           ├── help.js
+│   │           ├── index.js
+│   │           ├── notifications.js
+│   │           ├── privacy.js
+│   │           ├── refunds.js
+│   │           └── terms.js
+│   ├── ludo/            # Ludo game screens
+│   │   └── modes.js     # Ludo game modes selection
+│   ├── wallet/          # Wallet section
+│   │   ├── add-money.js
+│   │   ├── index.js
+│   │   ├── transactions.js
+│   │   └── withdraw.js
+│   ├── _layout.js       # App layout configuration
+│   ├── index.js         # App entry point
+│   ├── ludo.js          # Ludo game board
+│   ├── main.js          # Main app screen
+│   └── mines.js         # Mines game screen
+├── lib/                 # Game logic and components
+│   ├── LudoBoardScreen/ # Ludo game implementation
+│   │   ├── index.tsx
+│   │   └── styles.ts
+│   ├── MinesBoardScreen/# Mines game implementation
+│   │   ├── index.tsx
+│   │   └── styles.ts
+│   └── components/      # Reusable UI components
+│       ├── AlphaGamesButton.tsx
+│       ├── AlphaGamesCard.tsx
+│       ├── Cell.tsx
+│       ├── Dice.tsx
+│       ├── FourTriangle.tsx
+│       ├── GradientButton.tsx
+│       ├── HorizontalPath.tsx
+│       ├── MenuModal.tsx
+│       ├── Pile.tsx
+│       ├── Pocket.tsx
+│       ├── SplashScreen.tsx
+│       ├── VerticalPath.tsx
+│       ├── WinnerModal.tsx
+│       └── Wrapper.tsx
+├── src/                 # Services and utilities
+│   ├── services/        # Firebase and API services
+│   │   ├── aiPlayerService.js
+│   │   ├── enhancedGameLogic.js
+│   │   ├── firebaseService.js
+│   │   ├── gameLogic.js
+│   │   ├── multiplayerService.js
+│   │   ├── notificationService.js
+│   │   ├── paymentService.js
+│   │   ├── statisticsService.js
+│   │   └── tournamentService.js
+│   └── utils/           # Utility functions
+├── assets/              # Images, sounds, fonts
+└── admin/               # Admin panel (if applicable)
 ```
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - Node.js (v14 or higher)
@@ -112,7 +143,7 @@ src/
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd ludo-game-app
+   cd gamin-app
    ```
 
 2. **Install dependencies**
@@ -132,117 +163,64 @@ src/
    - For iOS: `npm run ios` or scan QR code with Expo Go
    - For Web: `npm run web`
 
-## 🎮 How to Play
+## 🎮 Game Descriptions
 
-### Game Rules
-1. Each player has 4 tokens that start in their home area
-2. Roll a 6 to move a token out of home
-3. Move tokens clockwise around the board
-4. Land on opponent tokens to capture them (send back to home)
-5. Safe positions (marked with stars) protect tokens from capture
-6. First player to get all 4 tokens to the center wins
+### Ludo Classic
+Ludo is a strategy board game for 2 to 4 players. Each player has 4 tokens that start in their home area. Players take turns rolling a dice to move their tokens around the board. The first player to get all 4 tokens to the center wins.
 
-### App Features
-1. **Login/Register**: Use phone number and OTP verification
-2. **Home Screen**: View wallet balance, join tournaments, create/join rooms
-3. **Create Room**: Set up custom games with entry fees
-4. **Join Room**: Enter 6-digit room codes to join games
-5. **Tournaments**: Participate in scheduled tournaments
-6. **Wallet**: Add money, withdraw winnings, view transaction history
+#### Game Modes
+1. **1 vs 1**: Two-player competitive mode
+2. **2 vs 2**: Team-based gameplay
+3. **3 Players**: Three-player variant
+4. **4 Players**: Classic four-player mode
 
-## 💰 Monetization Features
+### Mines Game
+A variant of Minesweeper with a betting system. Players select the number of mines on a 5x5 grid and place bets. The goal is to reveal as many safe cells (with gems) as possible without hitting a mine.
 
-### Wallet System
-- **Add Money**: Minimum ₹10, Maximum ₹10,000
-- **Withdraw**: Minimum ₹50, processed within 24 hours
-- **Transaction History**: Complete record of all transactions
+#### Game Mechanics
+- Adjustable mine count (1-24)
+- Bet amount customization
+- All safe cells contain gems
+- Cashout at any time during gameplay
+- Winnings based on revealed cells and gems
 
-### Tournament System
-- **Entry Fees**: Configurable tournament entry fees
-- **Prize Pools**: Distributed among winners
-- **Tournament Types**: Daily, Weekly, Special events
+## 💰 Wallet System
 
-### Room System
-- **Entry Fees**: Optional entry fees for private rooms
-- **Winner Takes All**: Prize pool goes to the winner
+The app uses an in-app currency system:
+- Displayed as ₹ (Rupees) throughout the app
+- Used for entry fees in games
+- Updated in real-time through Firebase
+- No real money transactions (for now)
 
 ## 🔧 Configuration
 
 ### Environment Variables
 Create a `.env` file in the root directory:
 ```env
-EXPO_PUBLIC_API_URL=your_api_url
-EXPO_PUBLIC_RAZORPAY_KEY=your_razorpay_key
-EXPO_PUBLIC_FIREBASE_CONFIG=your_firebase_config
+EXPO_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
+EXPO_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
 ```
-
-### App Configuration
-Edit `src/utils/constants.js` to modify:
-- Minimum/maximum wallet amounts
-- Tournament settings
-- Game rules
-- UI themes
-
-## 📱 Screenshots
-
-[Add screenshots of different screens here]
 
 ## 🧪 Testing
 
 ### Manual Testing Checklist
 - [ ] User registration and login
 - [ ] Game board rendering
-- [ ] Dice rolling functionality
-- [ ] Token movement
-- [ ] Room creation and joining
-- [ ] Tournament participation
-- [ ] Wallet operations
+- [ ] Ludo gameplay
+- [ ] Mines game gameplay
+- [ ] Wallet balance updates
 - [ ] Navigation between screens
+- [ ] Mode selection for Ludo
 
 ### Automated Testing
 ```bash
 # Run tests (when implemented)
 npm test
 ```
-
-## 🚀 Deployment
-
-### Android APK Build
-```bash
-expo build:android
-```
-
-### iOS IPA Build
-```bash
-expo build:ios
-```
-
-### Web Deployment
-```bash
-expo build:web
-npm run deploy
-```
-
-## 🔮 Future Enhancements
-
-### Phase 2 Features
-- [ ] Firebase real-time multiplayer
-- [ ] Voice chat during games
-- [ ] Spectator mode
-- [ ] Replay system
-- [ ] Advanced statistics
-- [ ] Social features (friends, chat)
-- [ ] Multiple game variants
-- [ ] AI opponents
-- [ ] Offline mode
-
-### Phase 3 Features
-- [ ] Cross-platform play
-- [ ] Esports tournaments
-- [ ] Streaming integration
-- [ ] NFT integration
-- [ ] Cryptocurrency payments
-- [ ] VR/AR support
 
 ## 🤝 Contributing
 
@@ -260,24 +238,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 For support and questions:
 - Create an issue on GitHub
-- Email: support@ludoking.com
-- Discord: [Join our community]
 
 ## 🙏 Acknowledgments
 
 - React Native team for the amazing framework
 - Expo team for simplifying development
-- Ludo game rules and traditional gameplay
 - Community contributors and testers
-
-## 📊 Project Status
-
-- **Phase 1**: ✅ Completed (Core features)
-- **Phase 2**: 🚧 In Progress (Firebase integration)
-- **Phase 3**: 📋 Planned (Advanced features)
 
 ---
 
 **Built with ❤️ using React Native and Expo**
 
-*Ready to play? Download the app and start your Ludo journey!* 🎲
+*Ready to play? Download the app and start your gaming journey!* 🎲

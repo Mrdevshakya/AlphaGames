@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  StatusBar,
-  RefreshControl,
-  Alert,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  Dimensions,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { firebaseService } from '../../src/services/firebaseService';
 
 const { width } = Dimensions.get('window');
@@ -53,41 +53,10 @@ const TournamentsScreen = () => {
       
       // Group tournaments by status
       const groupedTournaments = {
-        live: allTournaments.filter(t => t.status === 'live'),
-        upcoming: allTournaments.filter(t => t.status === 'upcoming'),
-        completed: allTournaments.filter(t => t.status === 'completed')
+        live: allTournaments.filter(t => t.status === 'started'),
+        upcoming: allTournaments.filter(t => t.status === 'open'),
+        completed: allTournaments.filter(t => t.status === 'completed' || t.status === 'cancelled')
       };
-
-      // If no tournaments from Firebase, create some sample ones for demonstration
-      if (allTournaments.length === 0) {
-        groupedTournaments.live = [
-          {
-            id: 'sample_live_1',
-            title: 'Mega Championship',
-            prizePool: 50000,
-            entryFee: 500,
-            participants: [],
-            maxParticipants: 1000,
-            status: 'live',
-            game: 'Dice Master',
-            createdAt: new Date(),
-          }
-        ];
-        
-        groupedTournaments.upcoming = [
-          {
-            id: 'sample_upcoming_1',
-            title: 'Weekend Special',
-            prizePool: 25000,
-            entryFee: 250,
-            participants: [],
-            maxParticipants: 500,
-            status: 'upcoming',
-            game: 'Strategy Arena',
-            createdAt: new Date(),
-          }
-        ];
-      }
 
       setTournaments(groupedTournaments);
     } catch (error) {
@@ -106,12 +75,14 @@ const TournamentsScreen = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'live':
+      case 'started':
         return '#00FF00';
-      case 'upcoming':
+      case 'open':
         return '#FFA500';
       case 'completed':
         return '#666666';
+      case 'cancelled':
+        return '#FF0000';
       default:
         return '#FFFFFF';
     }
@@ -120,6 +91,18 @@ const TournamentsScreen = () => {
   const handleJoinTournament = async (tournament) => {
     if (!currentUser) {
       Alert.alert('Login Required', 'Please login to join tournaments');
+      return;
+    }
+    
+    // Only allow joining tournaments with 'open' status
+    if (tournament.status !== 'open') {
+      if (tournament.status === 'started') {
+        Alert.alert('Tournament Already Started', 'This tournament is already in progress.');
+      } else if (tournament.status === 'completed') {
+        Alert.alert('Tournament Completed', 'This tournament has already been completed.');
+      } else if (tournament.status === 'cancelled') {
+        Alert.alert('Tournament Cancelled', 'This tournament has been cancelled.');
+      }
       return;
     }
 
@@ -167,12 +150,16 @@ const TournamentsScreen = () => {
   };
 
   const formatTimeLeft = (tournament) => {
-    if (tournament.status === 'live') {
+    if (tournament.status === 'started') {
       return 'Live Now';
-    } else if (tournament.status === 'upcoming') {
+    } else if (tournament.status === 'open') {
       return 'Starting Soon';
-    } else {
+    } else if (tournament.status === 'completed') {
       return 'Completed';
+    } else if (tournament.status === 'cancelled') {
+      return 'Cancelled';
+    } else {
+      return 'Unknown';
     }
   };
 
@@ -180,16 +167,19 @@ const TournamentsScreen = () => {
     <TouchableOpacity 
       key={tournament.id} 
       style={styles.tournamentCard}
-      onPress={() => tournament.status !== 'completed' && handleJoinTournament(tournament)}
+      onPress={() => tournament.status === 'open' && handleJoinTournament(tournament)}
     >
       <View style={styles.tournamentHeader}>
         <View style={styles.tournamentInfo}>
-          <Text style={styles.tournamentTitle}>{tournament.title}</Text>
-          <Text style={styles.tournamentGame}>{tournament.game || 'Ludo Game'}</Text>
+          <Text style={styles.tournamentTitle}>{tournament.name || tournament.title}</Text>
+          <Text style={styles.tournamentGame}>{tournament.gameType || tournament.game || 'Ludo Game'}</Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(tournament.status) }]}>
-          <Text style={[styles.statusText, { color: tournament.status === 'completed' ? '#FFFFFF' : '#000000' }]}>
-            {tournament.status.toUpperCase()}
+          <Text style={[styles.statusText, { color: tournament.status === 'completed' || tournament.status === 'cancelled' ? '#FFFFFF' : '#000000' }]}>
+            {tournament.status === 'started' ? 'LIVE' : 
+             tournament.status === 'open' ? 'UPCOMING' : 
+             tournament.status === 'completed' ? 'COMPLETED' : 
+             tournament.status === 'cancelled' ? 'CANCELLED' : tournament.status.toUpperCase()}
           </Text>
         </View>
       </View>
@@ -198,7 +188,7 @@ const TournamentsScreen = () => {
         <View style={styles.detailRow}>
           <View style={styles.detailItem}>
             <Ionicons name="trophy-outline" size={16} color="#666666" />
-            <Text style={styles.detailText}>Prize: ₹{(tournament.prizePool || 0).toLocaleString()}</Text>
+            <Text style={styles.detailText}>Prize: ₹{(tournament.prizePool || tournament.prizeMoney || 0).toLocaleString()}</Text>
           </View>
           <View style={styles.detailItem}>
             <Ionicons name="card-outline" size={16} color="#666666" />
@@ -256,7 +246,7 @@ const TournamentsScreen = () => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
       
-      {/* Tabs */}
+      {/* Tabs - No header */}
       <View style={styles.tabsContainer}>
         {tabs.map((tab) => (
           <TouchableOpacity
@@ -328,7 +318,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#000000',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingTop: 25,
+    paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#333333',
   },

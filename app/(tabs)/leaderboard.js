@@ -33,13 +33,19 @@ const LeaderboardScreen = () => {
 
   useEffect(() => {
     loadLeaderboardData();
-    loadCurrentUser();
   }, [selectedPeriod]);
+
+  // Load current user and update rank when leaderboard data changes
+  useEffect(() => {
+    loadCurrentUser();
+  }, [leaderboardData]);
 
   const loadLeaderboardData = async () => {
     try {
       setLoading(true);
+      console.log('Loading leaderboard for period:', selectedPeriod);
       const data = await firebaseService.getLeaderboard(selectedPeriod);
+      console.log('Leaderboard data received:', data);
       setLeaderboardData(data);
     } catch (error) {
       console.error('Error loading leaderboard:', error);
@@ -52,11 +58,13 @@ const LeaderboardScreen = () => {
   const loadCurrentUser = async () => {
     try {
       const user = await firebaseService.getCurrentUser();
+      console.log('Current user:', user);
       if (user) {
         setCurrentUser(user);
         // Find user's rank in leaderboard
         const userRank = leaderboardData.findIndex(player => player.id === user.uid) + 1;
-        setCurrentUserRank(userRank || 156); // Default rank if not found
+        console.log('User rank calculated:', userRank);
+        setCurrentUserRank(userRank > 0 ? userRank : 0); // 0 if not found
       }
     } catch (error) {
       console.error('Error loading current user:', error);
@@ -108,8 +116,8 @@ const LeaderboardScreen = () => {
           </Text>
           <View style={styles.playerStats}>
             <View style={styles.statItem}>
-              <Ionicons name="star-outline" size={14} color="#666666" />
-              <Text style={styles.statText}>{(player.score || 0).toLocaleString()}</Text>
+              <Ionicons name="trophy-outline" size={14} color="#666666" />
+              <Text style={styles.statText}>{player.gamesWon || 0} Wins</Text>
             </View>
             <View style={styles.statItem}>
               <Ionicons name="game-controller-outline" size={14} color="#666666" />
@@ -266,10 +274,11 @@ const styles = StyleSheet.create({
   },
   headerSafeArea: {
     backgroundColor: '#000000',
+    paddingTop: 20,
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 30,
     paddingBottom: 5,
     backgroundColor: '#000000',
   },
@@ -280,6 +289,7 @@ const styles = StyleSheet.create({
   },
   stickyHeader: {
     backgroundColor: '#000000',
+    paddingTop: 15,
   },
   content: {
     paddingHorizontal: 20,
